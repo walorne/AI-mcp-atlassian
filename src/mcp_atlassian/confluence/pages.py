@@ -7,6 +7,7 @@ from requests.exceptions import HTTPError
 
 from ..exceptions import MCPAtlassianAuthenticationError
 from ..models.confluence import ConfluencePage
+from ..preprocessing.links import ConfluenceLinksParser
 from .client import ConfluenceClient
 from .v2_adapter import ConfluenceV2Adapter
 
@@ -587,3 +588,37 @@ class PagesMixin(ConfluenceClient):
         except Exception as e:
             logger.error(f"Error deleting page {page_id}: {str(e)}")
             raise Exception(f"Failed to delete page {page_id}: {str(e)}") from e
+
+    def get_page_links(self, page_id: str) -> dict[str, list[dict]]:
+        """
+        Get incoming and outgoing links for a specific page using viewinfo.action.
+
+        Args:
+            page_id: The ID of the page
+
+        Returns:
+            Dictionary containing 'incoming' and 'outgoing' link lists
+        """
+        # Construct the URL for the info page
+        base_url = self.config.url.rstrip("/")
+        info_url = f"{base_url}/pages/viewinfo.action"
+
+        try:
+            logger.debug(f"Fetching page links from {info_url} for page {page_id}")
+            # Use the existing authenticated session
+            response = self.confluence._session.get(
+                info_url,
+                params={"pageId": page_id},
+                timeout=30,
+            )
+            response.raise_for_status()
+
+            # Initialize parser
+            parser = ConfluenceLinksParser(base_url)
+
+            # Parse links
+            return parser.parse(response.text, response.url)
+
+        except Exception as e:
+            logger.error(f"Error fetching page links for {page_id}: {str(e)}")
+            raise Exception(f"Failed to fetch page links: {str(e)}") from e

@@ -677,6 +677,36 @@ async def add_comment(
 
 
 @confluence_mcp.tool(tags={"confluence", "read"})
+async def get_page_links(
+    ctx: Context,
+    page_id: Annotated[
+        str,
+        Field(description="The ID of the page to get links for"),
+    ],
+) -> str:
+    """Get incoming and outgoing links for a specific Confluence page.
+
+    Args:
+        ctx: The FastMCP context.
+        page_id: The ID of the page.
+
+    Returns:
+        JSON string representing lists of incoming and outgoing links.
+    """
+    confluence_fetcher = await get_confluence_fetcher(ctx)
+    try:
+        links = confluence_fetcher.get_page_links(page_id)
+        return json.dumps(links, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Error getting links for page {page_id}: {str(e)}")
+        return json.dumps(
+            {"error": f"Failed to get page links: {str(e)}"},
+            indent=2,
+            ensure_ascii=False,
+        )
+
+
+@confluence_mcp.tool(tags={"confluence", "read"})
 async def search_user(
     ctx: Context,
     query: Annotated[
