@@ -125,8 +125,9 @@ class ConfluenceLinksParser:
                     if len(parts) > 1:
                         # Decode + and %XX
                         raw_title = parts[1]
-                        # First unquote to handle %20 etc, then replace + with space if standard URL decoding didn't handle it
-                        title = unquote(raw_title).replace("+", " ")
+                        # First replace + with space (Confluence uses + for spaces in display URLs),
+                        # then unquote to handle %XX (like %2B for literal +)
+                        title = unquote(raw_title.replace("+", " "))
         except Exception:
             # Fallback to defaults if parsing fails
             pass
