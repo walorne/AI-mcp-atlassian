@@ -622,3 +622,159 @@ class PagesMixin(ConfluenceClient):
         except Exception as e:
             logger.error(f"Error fetching page links for {page_id}: {str(e)}")
             raise Exception(f"Failed to fetch page links: {str(e)}") from e
+
+    def get_page_full(
+        self, page_id: str, *, convert_to_markdown: bool = True
+    ) -> ConfluencePage:
+        """
+        Get content of a specific page in full format (export_view).
+
+        Args:
+            page_id: The ID of the page to retrieve
+            convert_to_markdown: When True, returns content in markdown format,
+                               otherwise returns raw HTML (keyword-only)
+
+        Returns:
+            ConfluencePage model containing the page content (HTML) and metadata
+
+        Raises:
+            MCPAtlassianAuthenticationError: If authentication fails
+            Exception: If there is an error retrieving the page
+        """
+        try:
+            # Use v2 API for OAuth, v1 for others
+            v2_adapter = self._v2_adapter
+            if v2_adapter:
+                # Note: v2 might handle export_view differently, but we ask for body.export_view
+                logger.debug(
+                    f"Using v2 API for OAuth authentication to get full page '{page_id}'"
+                )
+                page = v2_adapter.get_page(
+                    page_id=page_id,
+                    expand="body.export_view,version,space,children.attachment",
+                )
+            else:
+                logger.debug(
+                    f"Using v1 API for token/basic authentication to get full page '{page_id}'"
+                )
+                page = self.confluence.get_page_by_id(
+                    page_id=page_id,
+                    expand="body.export_view,version,space,children.attachment",
+                )
+
+            space_key = page.get("space", {}).get("key", "")
+            try:
+                # Try to get export_view value
+                content = page["body"]["export_view"]["value"]
+            except (KeyError, TypeError) as e:
+                logger.warning(
+                    f"Page {page.get('id', 'unknown')} missing body.export_view.value: {e}"
+                )
+                # Fallback to storage if export_view is missing (rare but safe)
+                try:
+                    content = page["body"]["storage"]["value"]
+                    logger.info("Falling back to storage format")
+                except (KeyError, TypeError):
+                    content = ""
+
+            # Process content (convert to Markdown)
+            # Even though it's export_view (HTML), our preprocessor handles HTML -> MD conversion
+            processed_html, processed_markdown = self.preprocessor.process_html_content(
+                content, space_key=space_key, confluence_client=self.confluence
+            )
+
+            # Use the appropriate content format based on the convert_to_markdown flag
+            page_content = processed_markdown if convert_to_markdown else processed_html
+
+            # Return with processed Markdown (default behavior for LLM)
+            return ConfluencePage.from_api_response(
+                page,
+                base_url=self.config.url,
+                include_body=True,
+                content_override=page_content,
+                content_format="markdown" if convert_to_markdown else "export_view",
+                is_cloud=self.config.is_cloud,
+            )
+        except HTTPError as http_err:
+            if http_err.response is not None and http_err.response.status_code in [
+                401,
+                403,
+            ]:
+                error_msg = (
+                    f"Authentication failed for Confluence API ({http_err.response.status_code}). "
+                    "Token may be expired or invalid. Please verify credentials."
+                )
+                logger.error(error_msg)
+                raise MCPAtlassianAuthenticationError(error_msg) from http_err
+            else:
+                logger.error(f"HTTP error during API call: {http_err}", exc_info=False)
+                raise http_err
+        except Exception as e:
+            logger.error(
+                f"Error retrieving full page content for page ID {page_id}: {str(e)}"
+            )
+            raise Exception(f"Error retrieving full page content: {str(e)}") from e
+
+    def get_page_full_by_title(
+        self, space_key: str, title: str, *, convert_to_markdown: bool = True
+    ) -> ConfluencePage | None:
+        """
+        Get a specific page in full format (export_view) by its title.
+
+        Args:
+            space_key: The key of the space containing the page
+            title: The title of the page to retrieve
+            convert_to_markdown: When True, returns content in markdown format,
+                               otherwise returns raw HTML (keyword-only)
+
+        Returns:
+            ConfluencePage model containing the page content and metadata, or None if not found
+        """
+        try:
+            # Directly try to find the page by title
+            page = self.confluence.get_page_by_title(
+                space=space_key, title=title, expand="body.export_view,version"
+            )
+
+            if not page:
+                logger.warning(
+                    f"Page '{title}' not found in space '{space_key}'. "
+                    f"The space may be invalid, the page may not exist, or permissions may be insufficient."
+                )
+                return None
+
+            try:
+                content = page["body"]["export_view"]["value"]
+            except (KeyError, TypeError) as e:
+                logger.warning(
+                    f"Page {page.get('id', 'unknown')} missing body.export_view.value: {e}"
+                )
+                # Fallback to storage
+                try:
+                    content = page["body"]["storage"]["value"]
+                except (KeyError, TypeError):
+                    content = ""
+
+            space_key = page.get("space", {}).get("key", "")
+            processed_html, processed_markdown = self.preprocessor.process_html_content(
+                content, space_key=space_key, confluence_client=self.confluence
+            )
+
+            # Use the appropriate content format based on the convert_to_markdown flag
+            page_content = processed_markdown if convert_to_markdown else processed_html
+
+            # Create and return the ConfluencePage model
+            return ConfluencePage.from_api_response(
+                page,
+                base_url=self.config.url,
+                include_body=True,
+                # Override content with our processed version
+                content_override=page_content,
+                content_format="markdown" if convert_to_markdown else "export_view",
+                is_cloud=self.config.is_cloud,
+            )
+
+        except Exception as e:
+            logger.error(f"Error retrieving full page by title '{title}': {str(e)}")
+            return None
+

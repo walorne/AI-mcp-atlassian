@@ -681,7 +681,13 @@ async def get_page_links(
     ctx: Context,
     page_id: Annotated[
         str,
-        Field(description="The ID of the page to get links for"),
+        Field(
+            description=(
+                "Confluence page ID (numeric ID, can be found in the page URL). "
+                "For example, in the URL 'https://example.atlassian.net/wiki/spaces/TEAM/pages/123456789/Page+Title', "
+                "the page ID is '123456789'. "
+            )
+        ),
     ],
 ) -> str:
     """Get incoming and outgoing links for a specific Confluence page.
@@ -704,6 +710,130 @@ async def get_page_links(
             indent=2,
             ensure_ascii=False,
         )
+
+
+@confluence_mcp.tool(tags={"confluence", "read"})
+async def get_page_full(
+    ctx: Context,
+    page_id: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Confluence page ID (numeric ID, can be found in the page URL). "
+                "For example, in the URL 'https://example.atlassian.net/wiki/spaces/TEAM/pages/123456789/Page+Title', "
+                "the page ID is '123456789'. "
+                "Provide this OR both 'title' and 'space_key'. If page_id is provided, title and space_key will be ignored."
+            ),
+            default=None,
+        ),
+    ] = None,
+    title: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The exact title of the Confluence page. Use this with 'space_key' if 'page_id' is not known."
+            ),
+            default=None,
+        ),
+    ] = None,
+    space_key: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The key of the Confluence space where the page resides (e.g., 'DEV', 'TEAM'). Required if using 'title'."
+            ),
+            default=None,
+        ),
+    ] = None,
+    include_metadata: Annotated[
+        bool,
+        Field(
+            description="Whether to include page metadata such as creation date, last update, version, and labels.",
+            default=True,
+        ),
+    ] = True,
+    convert_to_markdown: Annotated[
+        bool,
+        Field(
+            description=(
+                "Whether to convert page to markdown (true) or keep it in raw HTML format (false). "
+                "Raw HTML can reveal macros (like dates) not visible in markdown, but CAUTION: "
+                "using HTML significantly increases token usage in AI responses."
+            ),
+            default=True,
+        ),
+    ] = True,
+) -> str:
+    """Get full content of a specific Confluence page in export view.
+
+    Use this tool when you need an accurate representation of tables, macros, and layout
+    that might be lost or malformed in standard storage format.
+    The content is returned as processed Markdown, but derived from the final HTML render.
+
+    Args:
+        ctx: The FastMCP context.
+        page_id: Confluence page ID. If provided, 'title' and 'space_key' are ignored.
+        title: The exact title of the page. Must be used with 'space_key'.
+        space_key: The key of the space. Must be used with 'title'.
+        include_metadata: Whether to include page metadata.
+        convert_to_markdown: Convert content to markdown (true) or keep raw HTML (false).
+
+    Returns:
+        JSON string representing the page content and metadata.
+    """
+    confluence_fetcher = await get_confluence_fetcher(ctx)
+    page_object = None
+
+    if page_id:
+        if title or space_key:
+            logger.warning(
+                "page_id was provided; title and space_key parameters will be ignored."
+            )
+        try:
+            page_object = confluence_fetcher.get_page_full(
+                page_id, convert_to_markdown=convert_to_markdown
+            )
+        except Exception as e:
+            logger.error(f"Error fetching full page by ID '{page_id}': {e}")
+            return json.dumps(
+                {"error": f"Failed to retrieve full page by ID '{page_id}': {e}"},
+                indent=2,
+                ensure_ascii=False,
+            )
+    elif title and space_key:
+        page_object = confluence_fetcher.get_page_full_by_title(
+            space_key, title, convert_to_markdown=convert_to_markdown
+        )
+        if not page_object:
+            return json.dumps(
+                {
+                    "error": f"Page with title '{title}' not found in space '{space_key}'."
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+    else:
+        return json.dumps(
+            {
+                "error": "Either 'page_id' OR both 'title' and 'space_key' must be provided."
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+
+    if not page_object:
+        return json.dumps(
+            {"error": "Page not found with the provided identifiers."},
+            indent=2,
+            ensure_ascii=False,
+        )
+
+    if include_metadata:
+        result = {"metadata": page_object.to_simplified_dict()}
+    else:
+        result = {"content": {"value": page_object.content}}
+
+    return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 @confluence_mcp.tool(tags={"confluence", "read"})
