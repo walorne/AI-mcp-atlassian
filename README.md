@@ -8,6 +8,18 @@
 
 Model Context Protocol (MCP) server for Atlassian products (Confluence and Jira). This integration supports both Confluence & Jira Cloud and Server/Data Center deployments.
 
+## New Features
+
+This version includes extended functionality for Confluence compared to the original tool:
+
+- **`confluence_get_page_links`**: Get incoming and outgoing links for a specific page.
+  - Returns both internal (Confluence pages) and external (web URLs) links.
+  - Useful for mapping page relationships and dependencies.
+- **`confluence_get_page_full`**: Get high-fidelity page content using `export_view` format.
+  - Provides rendered HTML content including macros, tables, and dynamic elements.
+  - More accurate than standard storage format for complex pages.
+  - Supports automatic Markdown conversion while preserving structure.
+
 ## Example Usage
 
 Ask your AI assistant to:
@@ -735,6 +747,8 @@ Here's a complete example of setting up multi-user authentication with streamabl
 
 - `confluence_search`: Search Confluence content using CQL
 - `confluence_get_page`: Get content of a specific page
+- `confluence_get_page_full`: Get full rendered content (export view)
+- `confluence_get_page_links`: Get page links (incoming/outgoing)
 - `confluence_create_page`: Create a new page
 - `confluence_update_page`: Update an existing page
 
@@ -744,12 +758,12 @@ Here's a complete example of setting up multi-user authentication with streamabl
 |-----------|-------------------------------------|--------------------------------|
 | **Read**  | `jira_search`                       | `confluence_search`            |
 |           | `jira_get_issue`                    | `confluence_get_page`          |
-|           | `jira_get_all_projects`             | `confluence_get_page_children` |
-|           | `jira_get_project_issues`           | `confluence_get_comments`      |
-|           | `jira_get_worklog`                  | `confluence_get_labels`        |
-|           | `jira_get_transitions`              | `confluence_search_user`       |
-|           | `jira_search_fields`                |                                |
-|           | `jira_get_agile_boards`             |                                |
+|           | `jira_get_all_projects`             | `confluence_get_page_full`     |
+|           | `jira_get_project_issues`           | `confluence_get_page_links`    |
+|           | `jira_get_worklog`                  | `confluence_get_page_children` |
+|           | `jira_get_transitions`              | `confluence_get_comments`      |
+|           | `jira_search_fields`                | `confluence_get_labels`        |
+|           | `jira_get_agile_boards`             | `confluence_search_user`       |
 |           | `jira_get_board_issues`             |                                |
 |           | `jira_get_sprints_from_board`       |                                |
 |           | `jira_get_sprint_issues`            |                                |
