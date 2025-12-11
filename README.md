@@ -6,19 +6,27 @@
 [![Run Tests](https://github.com/sooperset/mcp-atlassian/actions/workflows/tests.yml/badge.svg)](https://github.com/sooperset/mcp-atlassian/actions/workflows/tests.yml)
 ![License](https://img.shields.io/github/license/sooperset/mcp-atlassian)
 
+> **⚠️ This is a fork of the original [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) by sooperset with extended tool functionality.**
+>
+> **⚠️ Это форк оригинального [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) от sooperset с расширенной функциональностью инструментов.**
+
 Model Context Protocol (MCP) server for Atlassian products (Confluence and Jira). This integration supports both Confluence & Jira Cloud and Server/Data Center deployments.
 
-## New Features
+## Extended Tools / Расширенные инструменты
 
-This version includes extended functionality for Confluence compared to the original tool:
+This fork includes additional tools and functionality compared to the original repository:
 
-- **`confluence_get_page_links`**: Get incoming and outgoing links for a specific page.
-  - Returns both internal (Confluence pages) and external (web URLs) links.
-  - Useful for mapping page relationships and dependencies.
-- **`confluence_get_page_full`**: Get high-fidelity page content using `export_view` format.
-  - Provides rendered HTML content including macros, tables, and dynamic elements.
-  - More accurate than standard storage format for complex pages.
-  - Supports automatic Markdown conversion while preserving structure.
+Этот форк включает дополнительные инструменты и функциональность по сравнению с оригинальным репозиторием:
+
+### Confluence Extensions / Расширения Confluence
+
+- **`confluence_get_page_links`**: Get incoming and outgoing links for a specific page. / Получение входящих и исходящих ссылок для конкретной страницы.
+  - Returns both internal (Confluence pages) and external (web URLs) links. / Возвращает как внутренние (страницы Confluence), так и внешние (веб-URL) ссылки.
+  - Useful for mapping page relationships and dependencies. / Полезно для отображения связей и зависимостей между страницами.
+- **`confluence_get_page_full`**: Get high-fidelity page content using `export_view` format. / Получение контента страницы высокой точности с использованием формата `export_view`.
+  - Provides rendered HTML content including macros, tables, and dynamic elements. / Предоставляет отрендеренный HTML-контент, включая макросы, таблицы и динамические элементы.
+  - More accurate than standard storage format for complex pages. / Более точный, чем стандартный формат хранения для сложных страниц.
+  - Supports automatic Markdown conversion while preserving structure. / Поддерживает автоматическое преобразование в Markdown с сохранением структуры.
 
 ## Example Usage
 
