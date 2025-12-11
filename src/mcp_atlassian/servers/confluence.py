@@ -164,6 +164,10 @@ async def get_page(
 ) -> str:
     """Get content of a specific Confluence page by its ID, or by its title and space key.
 
+    Returns the page content in 'storage' format (raw XML/HTML storage format).
+    Good for simple text content or when you need to edit the page.
+    For complex pages with macros, tables, or layout, use 'get_page_full' instead.
+
     Args:
         ctx: The FastMCP context.
         page_id: Confluence page ID. If provided, 'title' and 'space_key' are ignored.
@@ -766,9 +770,10 @@ async def get_page_full(
 ) -> str:
     """Get full content of a specific Confluence page in export view.
 
-    Use this tool when you need an accurate representation of tables, macros, and layout
-    that might be lost or malformed in standard storage format.
-    The content is returned as processed Markdown, but derived from the final HTML render.
+    Use this tool by DEFAULT when you need to read, review, or analyze a page's content.
+    It returns the 'export_view' format which accurately renders tables, macros, and layout
+    as they appear to a user. Essential for understanding page context.
+    The content is returned as processed Markdown, derived from the final HTML render.
 
     Args:
         ctx: The FastMCP context.
