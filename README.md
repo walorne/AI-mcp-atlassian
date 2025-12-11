@@ -60,10 +60,10 @@ This fork includes additional tools and functionality compared to the original r
 cd D:\DEV
 
 # Клонируй репозиторий
-git clone https://github.com/scooperset/mcp-atlassian.git
+git clone https://github.com/walorne/AI-mcp-atlassian.git
 
 # Перейди в папку проекта
-cd mcp-atlassian
+cd AI-mcp-atlassian
 
 # Установи зависимости
 uv sync --frozen --all-extras --dev
@@ -112,7 +112,7 @@ uv sync --frozen --all-extras --dev
       "command": "uv",
       "args": [
         "--directory",
-        "D:\\DEV\\mcp-atlassian",
+        "D:\\DEV\\AI-mcp-atlassian",
         "run",
         "mcp-atlassian"
       ],
@@ -128,7 +128,7 @@ uv sync --frozen --all-extras --dev
 }
 ```
 
-> **⚠️ Важно:** Замени `D:\\DEV\\mcp-atlassian` на путь, куда ты склонировал репозиторий в Шаге 2.
+> **⚠️ Важно:** Замени `D:\\DEV\\AI-mcp-atlassian` на путь, куда ты склонировал репозиторий в Шаге 2.
 
 ### 📝 Описание переменных окружения
 
