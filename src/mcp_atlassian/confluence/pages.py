@@ -778,3 +778,59 @@ class PagesMixin(ConfluenceClient):
             logger.error(f"Error retrieving full page by title '{title}': {str(e)}")
             return None
 
+    def _download_attachment_as_bytes(
+        self, page_id: str, attachment_id: str, attachment_filename: str
+    ) -> bytes | None:
+        """
+        Download an attachment and return it as bytes.
+
+        Args:
+            page_id: The page ID containing the attachment
+            attachment_id: The attachment ID
+            attachment_filename: The filename of the attachment
+
+        Returns:
+            Bytes of the attachment, or None if download fails
+        """
+        try:
+            # Try to get download URL from attachments API
+            attachments = self.confluence.get_attachments_from_content(
+                page_id=page_id, start=0, limit=50
+            )
+
+            download_url = None
+            for attachment in attachments.get("results", []):
+                if attachment.get("id") == attachment_id:
+                    if "_links" in attachment and "download" in attachment["_links"]:
+                        relative_download_link = attachment["_links"]["download"]
+                        base_url = self.config.url.rstrip("/")
+                        download_url = f"{base_url}{relative_download_link}"
+                        break
+
+            # Fallback: construct URL manually for Confluence Server
+            if not download_url:
+                base_url = self.config.url.rstrip("/")
+                download_url = f"{base_url}/download/attachments/{page_id}/{attachment_filename}"
+
+            logger.debug(f"Downloading attachment from: {download_url}")
+
+            # Download using authenticated session
+            response = self.confluence._session.get(download_url, stream=True)
+            response.raise_for_status()
+
+            # Read content as bytes
+            image_data = response.content
+
+            logger.debug(
+                f"Successfully downloaded attachment {attachment_filename} "
+                f"({len(image_data)} bytes)"
+            )
+
+            return image_data
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to download attachment {attachment_id} ({attachment_filename}): {e}"
+            )
+            return None
+

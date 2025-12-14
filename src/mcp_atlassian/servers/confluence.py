@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Annotated
 
-from fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP, Image
 from pydantic import BeforeValidator, Field
 
 from mcp_atlassian.exceptions import MCPAtlassianAuthenticationError
@@ -839,6 +839,174 @@ async def get_page_full(
         result = {"content": {"value": page_object.content}}
 
     return json.dumps(result, indent=2, ensure_ascii=False)
+
+
+@confluence_mcp.tool(tags={"confluence", "read"})
+async def get_page_full_img(
+    ctx: Context,
+    page_id: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Confluence page ID (numeric ID, can be found in the page URL). "
+                "For example, in the URL 'https://example.atlassian.net/wiki/spaces/TEAM/pages/123456789/Page+Title', "
+                "the page ID is '123456789'. "
+                "Provide this OR both 'title' and 'space_key'. If page_id is provided, title and space_key will be ignored."
+            ),
+            default=None,
+        ),
+    ] = None,
+    title: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The exact title of the Confluence page. Use this with 'space_key' if 'page_id' is not known."
+            ),
+            default=None,
+        ),
+    ] = None,
+    space_key: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The key of the Confluence space where the page resides (e.g., 'DEV', 'TEAM'). Required if using 'title'."
+            ),
+            default=None,
+        ),
+    ] = None,
+    convert_to_markdown: Annotated[
+        bool,
+        Field(
+            description=(
+                "Whether to convert page to markdown (true) or keep it in raw HTML format (false). "
+                "Raw HTML can reveal macros (like dates) not visible in markdown, but CAUTION: "
+                "using HTML significantly increases token usage in AI responses."
+            ),
+            default=True,
+        ),
+    ] = True,
+) -> list:
+    """Get full content of a Confluence page with images attached.
+
+    This tool returns the page content as markdown (or HTML) along with all image attachments
+    from the page. Images are automatically downloaded and attached to the response, allowing
+    the AI model to view and analyze diagrams, screenshots, and other visual content.
+
+    Use this tool when you need to read pages that contain important diagrams or images
+    that are crucial for understanding the content.
+
+    Args:
+        ctx: The FastMCP context.
+        page_id: Confluence page ID. If provided, 'title' and 'space_key' are ignored.
+        title: The exact title of the page. Must be used with 'space_key'.
+        space_key: The key of the space. Must be used with 'title'.
+        convert_to_markdown: Convert content to markdown (true) or keep raw HTML (false).
+
+    Returns:
+        A list containing the page content (markdown/HTML string) followed by Image objects
+        for each image attachment on the page. FastMCP automatically converts this to
+        MCP content blocks that the AI model can read.
+    """
+    confluence_fetcher = await get_confluence_fetcher(ctx)
+    page_object = None
+
+    if page_id:
+        if title or space_key:
+            logger.warning(
+                "page_id was provided; title and space_key parameters will be ignored."
+            )
+        try:
+            page_object = confluence_fetcher.get_page_full(
+                page_id, convert_to_markdown=convert_to_markdown
+            )
+        except Exception as e:
+            logger.error(f"Error fetching full page by ID '{page_id}': {e}")
+            return [
+                json.dumps(
+                    {"error": f"Failed to retrieve full page by ID '{page_id}': {e}"},
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            ]
+    elif title and space_key:
+        page_object = confluence_fetcher.get_page_full_by_title(
+            space_key, title, convert_to_markdown=convert_to_markdown
+        )
+        if not page_object:
+            return [
+                json.dumps(
+                    {
+                        "error": f"Page with title '{title}' not found in space '{space_key}'."
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            ]
+    else:
+        return [
+            json.dumps(
+                {
+                    "error": "Either 'page_id' OR both 'title' and 'space_key' must be provided."
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        ]
+
+    if not page_object:
+        return [
+            json.dumps(
+                {"error": "Page not found with the provided identifiers."},
+                indent=2,
+                ensure_ascii=False,
+            )
+        ]
+
+    # Start with the page content (markdown or HTML)
+    result_content = [page_object.content]
+
+    # Download and attach images
+    if page_object.id and page_object.attachments:
+        for attachment in page_object.attachments:
+            # Only process image attachments
+            if (
+                attachment.media_type
+                and attachment.media_type.startswith("image/")
+                and attachment.id
+                and attachment.title
+            ):
+                logger.debug(
+                    f"Downloading image attachment: {attachment.title} (ID: {attachment.id})"
+                )
+                image_bytes = confluence_fetcher._download_attachment_as_bytes(
+                    page_id=page_object.id,
+                    attachment_id=attachment.id,
+                    attachment_filename=attachment.title,
+                )
+
+                if image_bytes:
+                    # Determine image format from media_type or filename
+                    image_format = "png"  # default
+                    if attachment.media_type:
+                        if "jpeg" in attachment.media_type or "jpg" in attachment.media_type:
+                            image_format = "jpeg"
+                        elif "gif" in attachment.media_type:
+                            image_format = "gif"
+                        elif "webp" in attachment.media_type:
+                            image_format = "webp"
+                    elif attachment.title:
+                        ext = attachment.title.split(".")[-1].lower()
+                        if ext in ["jpg", "jpeg", "png", "gif", "webp"]:
+                            image_format = ext if ext != "jpg" else "jpeg"
+
+                    # Create Image object
+                    image_obj = Image(data=image_bytes, format=image_format)
+                    result_content.append(image_obj)
+                    logger.debug(
+                        f"Successfully attached image: {attachment.title} ({len(image_bytes)} bytes, format: {image_format})"
+                    )
+
+    return result_content
 
 
 @confluence_mcp.tool(tags={"confluence", "read"})
