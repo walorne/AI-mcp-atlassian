@@ -26,6 +26,7 @@ dependencies = [
     "keyring>=25.6.0",
     "cachetools>=5.0.0",
     "types-cachetools>=5.5.0.20240820",
+    "sm-confluence-tools",
 ]
 [[project.authors]]
 name = "sooperset"
@@ -142,3 +143,6 @@ vcs = "git"
 style = "pep440"
 bump = true
 fallback-version = "0.0.0"
+
+[tool.uv.sources]
+sm-confluence-tools = { path = "src/mcp_atlassian/vendor/sm-confluence-tools" }

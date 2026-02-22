@@ -1,0 +1,100 @@
+stages:
+  - test
+  - lint
+  - type-check
+  - build
+  - publish
+
+default:
+  tags: [docker]
+  image: artifactory.app.local/publicregistry/python3.12.11:1.0.0
+  before_script:
+    - python --version
+    - pip install --upgrade pip
+
+variables:
+  PYTHON_VERSION: "3.12"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PIP_INDEX_URL: https://pypi.python.org/simple/
+  PIP_EXTRA_INDEX_URL: https://artifactory.app.local/artifactory/api/pypi/pypi.virt/simple
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+cache:
+  paths:
+    - .cache/pip
+    - .venv/
+
+# ----------------------
+# TESTS
+# ----------------------
+test:
+  stage: test
+  script:
+    - pip install -e ".[dev]"
+    - echo "JIRA_TOKEN=$JIRA_TOKEN" > .env
+    - echo "CONFLUENCE_TOKEN=$CONFLUENCE_TOKEN" >> .env
+    - pytest --cov=sm_confluence_tools --cov-report=xml --cov-report=html
+  coverage: '/TOTAL.+?(\d+\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - htmlcov/
+    expire_in: 1 week
+  only:
+    - main
+    - merge_requests
+
+lint:
+  stage: lint
+  script:
+    - pip install -e ".[dev]"
+    - black --check src/ tests/ examples/
+    - isort --check-only src/ tests/ examples/
+    - flake8 src/ tests/ examples/
+  only:
+    # - main
+    - merge_requests
+
+type-check:
+  stage: type-check
+  script:
+    - pip install -e ".[dev]"
+    - mypy src/
+  only:
+    # - main
+    - merge_requests
+
+# ----------------------
+# BUILD PACKAGE
+# ----------------------
+build:
+  stage: build
+  script:
+    - pip install build
+    - python -m build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  only:
+    - main
+    - tags
+
+# ----------------------
+# PUBLISH TO ARTIFACTORY
+# ----------------------
+publish:
+  stage: publish
+  script:
+    - pip install twine
+    - twine upload
+      --repository-url https://artifactory.app.local/artifactory/api/pypi/pypi.local
+      --cert /usr/local/share/ca-certificates/GKSMRootCA2.crt
+      -u "$ARTIFACTORY_USER"
+      -p "$ARTIFACTORY_TOKEN"
+      dist/*
+  rules:
+    - if: $CI_COMMIT_TAG

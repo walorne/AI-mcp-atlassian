@@ -1,0 +1,151 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sm-confluence-tools"
+version = "0.1.9"
+description = "Tools for parsing and converting Confluence pages to Markdown"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "SM Lab", email = "lab@example.com"}
+]
+maintainers = [
+    {name = "SM Lab", email = "lab@example.com"}
+]
+keywords = ["confluence", "markdown", "parser", "exporter"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "confluence-markdown-exporter",
+    "markdownify",
+    "beautifulsoup4",
+    "requests",
+    "atlassian-python-api",
+    "python-dotenv",
+    "tabulate",
+    "pyyaml",
+    "pip-system-certs",
+    "python-slugify"
+]
+
+[project.scripts]
+sm-cf-export = "sm_confluence_tools.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "flake8-pyproject",
+    "isort>=5.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+    "bump-my-version",
+    "types-tabulate",
+    "types-requests",
+    "types-python-slugify"
+]
+
+[project.urls]
+Homepage = "https://gitlab.app.local/ai/sm-confluence-tools"
+Repository = "https://gitlab.app.local/ai/sm-confluence-tools"
+Documentation = "https://gitlab.app.local/ai/sm-confluence-tools/-/wikis"
+"Bug Tracker" = "https://gitlab.app.local/ai/sm-confluence-tools/-/issues"
+"Source Code" = "https://gitlab.app.local/ai/sm-confluence-tools/-/tree/main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.package-data]
+sm_confluence_tools = ["py.typed"]
+
+[tool.black]
+line-length = 99
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | tmp
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 99
+known_first_party = ["sm_confluence_tools"]
+
+[tool.flake8]
+max-line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+  "confluence_markdown_exporter.*"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
