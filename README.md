@@ -14,13 +14,9 @@ This fork includes additional tools and functionality compared to the original r
 
 ### Confluence Extensions / Расширения Confluence
 
+- **`confluence_get_page`**: Get page content (Markdown with PlantUML and Draw.io XML). Must be called when the user message or context contains a Confluence link. / Получение контента страницы (Markdown с PlantUML и Draw.io XML). Обязателен к вызову при ссылке на Confluence.
 - **`confluence_get_page_links`**: Get incoming and outgoing links for a specific page. / Получение входящих и исходящих ссылок для конкретной страницы.
   - Returns both internal (Confluence pages) and external (web URLs) links. / Возвращает как внутренние (страницы Confluence), так и внешние (веб-URL) ссылки.
-  - Useful for mapping page relationships and dependencies. / Полезно для отображения связей и зависимостей между страницами.
-- **`confluence_get_page_full`**: Get high-fidelity page content using `export_view` format. / Получение контента страницы высокой точности с использованием формата `export_view`.
-  - Provides rendered HTML content including macros, tables, and dynamic elements. / Предоставляет отрендеренный HTML-контент, включая макросы, таблицы и динамические элементы.
-  - More accurate than standard storage format for complex pages. / Более точный, чем стандартный формат хранения для сложных страниц.
-  - Supports automatic Markdown conversion while preserving structure. / Поддерживает автоматическое преобразование в Markdown с сохранением структуры.
 
 ---
 
@@ -921,8 +917,8 @@ Here's a complete example of setting up multi-user authentication with streamabl
 #### Confluence Tools
 
 - `confluence_search`: Search Confluence content using CQL
-- `confluence_get_page`: Get content of a specific page
-- `confluence_get_page_full`: Get full rendered content (export view)
+- `confluence_get_page`: Get page content (Markdown with PlantUML/Draw.io); use when the user message contains a Confluence link
+- `confluence_get_page_children`: Get child pages of a parent page
 - `confluence_get_page_links`: Get page links (incoming/outgoing)
 - `confluence_create_page`: Create a new page
 - `confluence_update_page`: Update an existing page
@@ -933,12 +929,12 @@ Here's a complete example of setting up multi-user authentication with streamabl
 |-----------|-------------------------------------|--------------------------------|
 | **Read**  | `jira_search`                       | `confluence_search`            |
 |           | `jira_get_issue`                    | `confluence_get_page`          |
-|           | `jira_get_all_projects`             | `confluence_get_page_full`     |
+|           | `jira_get_all_projects`             | `confluence_get_page_children` |
 |           | `jira_get_project_issues`           | `confluence_get_page_links`    |
-|           | `jira_get_worklog`                  | `confluence_get_page_children` |
-|           | `jira_get_transitions`              | `confluence_get_comments`      |
-|           | `jira_search_fields`                | `confluence_get_labels`        |
-|           | `jira_get_agile_boards`             | `confluence_search_user`       |
+|           | `jira_get_worklog`                  | `confluence_get_comments`      |
+|           | `jira_get_transitions`              | `confluence_get_labels`        |
+|           | `jira_search_fields`                | `confluence_search_user`       |
+|           | `jira_get_agile_boards`             |                                |
 |           | `jira_get_board_issues`             |                                |
 |           | `jira_get_sprints_from_board`       |                                |
 |           | `jira_get_sprint_issues`            |                                |

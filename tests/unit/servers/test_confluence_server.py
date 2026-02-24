@@ -92,6 +92,15 @@ def mock_confluence_fetcher():
     }
     mock_fetcher.search_user.return_value = [mock_user_search_result]
 
+    # Config for get_page (pat/basic vs oauth, auth check)
+    mock_fetcher.config = MagicMock()
+    mock_fetcher.config.is_auth_configured.return_value = True
+    mock_fetcher.config.auth_type = "pat"
+    mock_fetcher.config.url = "https://example.atlassian.net"
+    mock_fetcher.config.personal_token = "test-token"
+    mock_fetcher.config.api_token = None
+    mock_fetcher.config.ssl_verify = True
+
     return mock_fetcher
 
 
@@ -275,67 +284,137 @@ async def test_search(client, mock_confluence_fetcher):
 
 @pytest.mark.anyio
 async def test_get_page(client, mock_confluence_fetcher):
-    """Test the get_page tool with default parameters."""
-    response = await client.call_tool("confluence_get_page", {"page_id": "123456"})
+    """Test the get_page tool with default parameters (pat auth, body from sm-confluence-tools)."""
+    mock_sm_page = MagicMock()
+    mock_sm_page.markdown = "Body from sm-confluence-tools markdown"
+    mock_sm_page.body_export = "<p>Body from sm-confluence-tools HTML</p>"
+    mock_page_class = MagicMock()
+    mock_page_class.from_id.return_value = mock_sm_page
+    mock_sm_client = MagicMock()
+    mock_sm_client.Page = mock_page_class
+
+    with patch(
+        "src.mcp_atlassian.servers.confluence.SmConfluenceTools",
+        return_value=mock_sm_client,
+    ):
+        response = await client.call_tool("confluence_get_page", {"page_id": "123456"})
 
     mock_confluence_fetcher.get_page_content.assert_called_once_with(
-        "123456", convert_to_markdown=True
+        "123456", convert_to_markdown=False
     )
+    mock_page_class.from_id.assert_called_once_with(123456)
 
     result_data = json.loads(response[0].text)
     assert "metadata" in result_data
     assert result_data["metadata"]["title"] == "Test Page Mock Title"
     assert "content" in result_data["metadata"]
     assert "value" in result_data["metadata"]["content"]
-    assert "This is a test page content" in result_data["metadata"]["content"]["value"]
+    assert (
+        result_data["metadata"]["content"]["value"]
+        == "Body from sm-confluence-tools markdown"
+    )
 
 
 @pytest.mark.anyio
 async def test_get_page_no_metadata(client, mock_confluence_fetcher):
-    """Test get_page with metadata disabled."""
-    response = await client.call_tool(
-        "confluence_get_page", {"page_id": "123456", "include_metadata": False}
-    )
+    """Test get_page with metadata disabled (pat auth, body from sm-confluence-tools)."""
+    mock_sm_page = MagicMock()
+    mock_sm_page.markdown = "Body from sm-confluence-tools markdown"
+    mock_sm_page.body_export = "<p>Body from sm-confluence-tools HTML</p>"
+    mock_page_class = MagicMock()
+    mock_page_class.from_id.return_value = mock_sm_page
+    mock_sm_client = MagicMock()
+    mock_sm_client.Page = mock_page_class
 
-    mock_confluence_fetcher.get_page_content.assert_called_once_with(
-        "123456", convert_to_markdown=True
-    )
+    with patch(
+        "src.mcp_atlassian.servers.confluence.SmConfluenceTools",
+        return_value=mock_sm_client,
+    ):
+        response = await client.call_tool(
+            "confluence_get_page", {"page_id": "123456", "include_metadata": False}
+        )
+
+    mock_confluence_fetcher.get_page_content.assert_not_called()
+    mock_page_class.from_id.assert_called_once_with(123456)
 
     result_data = json.loads(response[0].text)
     assert "metadata" not in result_data
     assert "content" in result_data
-    assert "This is a test page content" in result_data["content"]["value"]
+    assert (
+        result_data["content"]["value"] == "Body from sm-confluence-tools markdown"
+    )
 
 
 @pytest.mark.anyio
 async def test_get_page_no_markdown(client, mock_confluence_fetcher):
-    """Test get_page with HTML content format."""
+    """Test get_page with HTML content format (pat auth, body_export from sm-confluence-tools)."""
     mock_page_html = MagicMock(spec=ConfluencePage)
     mock_page_html.to_simplified_dict.return_value = {
         "id": "123456",
         "title": "Test Page HTML",
         "url": "https://example.com/html",
-        "content": "<p>HTML Content</p>",
-        "content_format": "storage",
+        "content": {"value": "<p>HTML Content</p>", "format": "storage"},
     }
     mock_page_html.content = "<p>HTML Content</p>"
     mock_page_html.content_format = "storage"
-
     mock_confluence_fetcher.get_page_content.return_value = mock_page_html
 
-    response = await client.call_tool(
-        "confluence_get_page", {"page_id": "123456", "convert_to_markdown": False}
-    )
+    mock_sm_page = MagicMock()
+    mock_sm_page.markdown = "Body from sm-confluence-tools markdown"
+    mock_sm_page.body_export = "<p>Body from sm-confluence-tools HTML</p>"
+    mock_page_class = MagicMock()
+    mock_page_class.from_id.return_value = mock_sm_page
+    mock_sm_client = MagicMock()
+    mock_sm_client.Page = mock_page_class
+
+    with patch(
+        "src.mcp_atlassian.servers.confluence.SmConfluenceTools",
+        return_value=mock_sm_client,
+    ):
+        response = await client.call_tool(
+            "confluence_get_page", {"page_id": "123456", "convert_to_markdown": False}
+        )
 
     mock_confluence_fetcher.get_page_content.assert_called_once_with(
         "123456", convert_to_markdown=False
     )
+    mock_page_class.from_id.assert_called_once_with(123456)
 
     result_data = json.loads(response[0].text)
     assert "metadata" in result_data
     assert result_data["metadata"]["title"] == "Test Page HTML"
-    assert result_data["metadata"]["content"] == "<p>HTML Content</p>"
-    assert result_data["metadata"]["content_format"] == "storage"
+    assert result_data["metadata"]["content"]["value"] == (
+        "<p>Body from sm-confluence-tools HTML</p>"
+    )
+    assert result_data["metadata"]["content"]["format"] == "storage"
+
+
+@pytest.mark.anyio
+async def test_get_page_oauth_fallback(client, mock_confluence_fetcher):
+    """Test get_page with OAuth: uses fetcher only, no sm-confluence-tools."""
+    mock_confluence_fetcher.config.auth_type = "oauth"
+    response = await client.call_tool("confluence_get_page", {"page_id": "123456"})
+
+    mock_confluence_fetcher.get_page_content.assert_called_once_with(
+        "123456", convert_to_markdown=True
+    )
+    result_data = json.loads(response[0].text)
+    assert "metadata" in result_data
+    assert result_data["metadata"]["title"] == "Test Page Mock Title"
+    assert "This is a test page content" in result_data["metadata"]["content"]["value"]
+
+
+@pytest.mark.anyio
+async def test_get_page_auth_not_configured(client, mock_confluence_fetcher):
+    """Test get_page when Confluence auth is not configured returns error JSON."""
+    mock_confluence_fetcher.config.is_auth_configured.return_value = False
+
+    response = await client.call_tool("confluence_get_page", {"page_id": "123456"})
+
+    mock_confluence_fetcher.get_page_content.assert_not_called()
+    result_data = json.loads(response[0].text)
+    assert "error" in result_data
+    assert "not configured" in result_data["error"].lower()
 
 
 @pytest.mark.anyio
