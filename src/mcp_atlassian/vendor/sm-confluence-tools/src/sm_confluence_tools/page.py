@@ -168,7 +168,8 @@ class _Page(cmexp.Page):
         def __init__(self, page: "_Page"):
             super().__init__(page)
 
-            self.plantuml_counter = 0
+            self._plantuml_sources = self._parse_plantuml_from_editor2()
+            self._plantuml_call_index = 0
 
             self.body_jira_tables = BeautifulSoup(self.page.body, "html.parser").find_all(
                 "div", {"data-macro-name": "jira"}
@@ -258,54 +259,44 @@ class _Page(cmexp.Page):
 
             return text
 
+        def _parse_plantuml_from_editor2(self) -> list[str]:
+            """Pre-parse editor2 to extract PlantUML source texts in document order."""
+            editor2 = self.page.editor2 or ""
+            if not editor2.strip():
+                return []
+            wrapped = f"<root>{editor2}</root>"
+            soup = BeautifulSoup(wrapped, "html.parser")
+            results: list[str] = []
+            for table in soup.find_all("table", {"data-macro-name": "plantuml"}):
+                pre = table.find("pre")
+                if pre:
+                    content = pre.get_text(strip=True)
+                    if content:
+                        results.append(content)
+            return results
+
         @override
         def convert_plantuml(
             self, el: BeautifulSoup, text: str, parent_tags: list[str]
         ) -> str:  # noqa: PLR0911
-            """Convert PlantUML diagrams from editor XML to Markdown code blocks.
+            """Convert PlantUML diagrams from editor2 to Markdown code blocks.
 
-            PlantUML diagrams are stored in the editor XML as structured macros with
-            the UML definition in a JSON structure inside CDATA sections.
+            Confluence columnLayout (two-equal, etc.) causes the converter to visit
+            the same span twice: once during DOM walk, once when re-processing cell
+            HTML in convert_table. The first result is discarded. Using cyclic indexing
+            ensures both passes produce the correct diagram.
             """
-            logger.debug("Processing PlantUML macro")
-
-            # Parse the editor content to find the PlantUML macro
-            # The editor2 content is an XML fragment without a root element, so wrap it
-            wrapped_editor2 = f"<root>{self.page.editor2}</root>"
-            soup_editor2 = BeautifulSoup(wrapped_editor2, "html.parser")  # HTML - not XML!
-
-            # Find the corresponding macro in editor content
-            macro_list = soup_editor2.find_all("table", {"data-macro-name": "plantuml"})
-            logger.debug(macro_list)
-
-            plantuml_macro = (
-                macro_list[self.plantuml_counter]
-                if self.plantuml_counter < len(macro_list)
-                else None
-            )
-
-            if not plantuml_macro:
+            if not self._plantuml_sources:
                 logger.warning(
-                    f"PlantUML macro number {self.plantuml_counter} not found in editor XML"  # noqa: E713,E501
+                    "No PlantUML macros found in editor2 (len(editor2)=%s)",
+                    len(self.page.editor2 or ""),
                 )
                 return "\n<!-- PlantUML diagram (not found in editor2) -->\n\n"
 
-            self.plantuml_counter += 1
+            idx = self._plantuml_call_index % len(self._plantuml_sources)
+            self._plantuml_call_index += 1
 
-            # Get macro ID for logging
-            macro_id = plantuml_macro.get("data-macro-id", "unknown")
-
-            # Extract the <pre> containing the diagram
-            plain_text_body = plantuml_macro.find("pre")
-            if not plain_text_body:
-                logger.warning(f"PlantUML macro {macro_id} has no plain-text-body")
-                return "\n<!-- PlantUML diagram (no content found) -->\n\n"
-
-            content = plain_text_body.get_text(strip=True)
-            if not content:
-                logger.warning(f"PlantUML macro {macro_id} has empty content")
-                return "\n<!-- PlantUML diagram (empty content) -->\n\n"
-
+            content = self._plantuml_sources[idx]
             content = plantuml.expand_includes(content)
             return f"\n```plantuml\n{content}\n```\n\n"
 
